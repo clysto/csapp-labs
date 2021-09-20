@@ -264,7 +264,48 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+
+  /*
+    * We first bit invert all negative numbers and
+    * use binary search to find out the log2(n).
+    * Then we add 1 to the final result since we need
+    * the MSB to represent the sign.
+    * Note: finding the following things are equal:
+    * 1. find the most significant bit of 1 for positive numbers
+    * 2. find the most significant bit of 0 for negative numbers
+    */
+  
+  int sign, bit0, bit1, bit2, bit4, bit8, bit16;
+
+  sign = x >> 31;
+  
+  // 如果是负数全部取反
+  x = (sign & ~x) | (~sign & x);
+  
+  // 二分搜索
+
+  // 如果高16位非0,至少需要16位表示,x = x的高16位
+  // 如果高16位为0,不需要16位表示,x = x的低16位(忽略高16位)
+  bit16 = !!(x >> 16) << 4;
+  x = x >> bit16;
+  
+  // 如果高8位非0,至少需要 bit16+8位表示,x = x的高8位
+  // 如果高8位为0,不需要 bit16+8位表示,x = x的低8位(忽略高8位)
+  bit8 = !!(x >> 8) << 3;
+  x = x >> bit8;
+  
+  bit4 = !!(x >> 4) << 2;
+  x = x >> bit4;
+  
+  bit2 = !!(x >> 2) << 1;
+  x = x >> bit2;
+  
+  bit1 = !!(x >> 1);
+  x = x >> bit1;
+  
+  bit0 = x;
+
+  return bit16 + bit8 + bit4 + bit2 + bit1 + bit0 + 1;
 }
 //float
 /* 
@@ -279,7 +320,14 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  int sign = uf & (1 << 31);
+  int exp = (uf & 0x7fffffff) >> 23;
+  // 判断uf为0和uf为非规约数的情况
+  if (exp == 0) return (uf << 1) | sign;
+  // 判断无穷大情况
+  if (exp == 255) return uf;
+  exp++;
+  return (exp<<23) | (uf & 0x807fffff);
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -294,7 +342,22 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  int sign = uf & (1 << 31);
+  int exp = ((uf & 0x7fffffff) >> 23) - 127;
+  int frac = (uf & 0x007fffff) | 0x00800000;
+  if (exp > 31) return 0x80000000;
+  if (exp < 0) return 0;
+
+  // 计算整数部分
+  if (exp > 23) frac <<= (exp - 23);
+  else frac >>= (23 - exp);
+
+  // 负数返回补码
+  if (sign) {
+    return ~frac+1;
+  } else {
+    return frac;
+  }
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -310,5 +373,13 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+  if (x < -149) return 0;
+  if (x > 127) return 0x7f800000;
+  if (x < -126) {
+    // 非规约数
+    return 1 << (23 - (-126 - x));
+  } else {
+    // 规约数
+    return (x + 127) << 23;
+  }
 }
